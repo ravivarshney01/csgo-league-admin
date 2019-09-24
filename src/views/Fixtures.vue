@@ -22,8 +22,8 @@
           <v-card-actions>
             <p v-if="item.flag" class="title fin">{{ item.wonby }} won the match</p>
             <div class="flex-grow-1"></div>
-            <v-btn v-if="item.flag" @click="dialogScore = true">See Scorecard</v-btn>
-            <v-btn v-if="!item.flag" @click="updateResult(item)">Update Result</v-btn>
+            <v-btn v-if="item.flag" @click="seeScore(item)">See Scorecard</v-btn>
+            <v-btn v-if="item.flag" @click="updateResult(item)">Update Result</v-btn>
           </v-card-actions>
         </v-card>
       </v-timeline-item>
@@ -49,7 +49,16 @@
                 <v-text-field v-model="rlost" type="number" label="Rounds Lost" required></v-text-field>
               </v-col>
               <v-col cols="12" sm="6" md="4">
-                <v-file-input accept="image/*" label="File input"></v-file-input>
+                <v-btn color="black" @click="$refs.inputUpload.click()">Choose Image</v-btn>
+                
+                <input
+                  type="file"
+                  ref="inputUpload"
+                  v-show="false"
+                  class="btn"
+                  id="imgInp"
+                  @change="onFileChange"
+                />
               </v-col>
             </v-row>
           </v-container>
@@ -58,6 +67,17 @@
           <v-spacer></v-spacer>
           <v-btn text @click="dialogUpdate = false">Close</v-btn>
           <v-btn text @click="updateRes">Update</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="dialogScore">
+      <v-card >
+        <v-card-text>
+          <img width="100%" height="auto" :src="srURL" alt="Scorecard" />
+        </v-card-text>
+
+        <v-card-actions>
+          <v-btn text @click="dialogScore = false">Close</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -72,12 +92,14 @@ export default {
   data() {
     return {
       fixtures: [],
+      file: null,
       dialogUpdate: false,
       dialogScore: false,
       fixture: {},
       teamwon: "",
       rwon: null,
-      rlost: null
+      rlost: null,
+      srURL: ""
     };
   },
   computed: {
@@ -95,11 +117,20 @@ export default {
   },
 
   methods: {
+    seeScore(item) {
+      this.dialogScore = true;
+      this.srURL = item.scURL;
+    },
+    onFileChange(e) {
+      const file = e.target.files[0];
+      this.file = file;
+      this.url = URL.createObjectURL(file);
+    },
     updateResult(data) {
       this.fixture = data;
-      this.rwon = null
-      this.rlost = null
-      this.teamwon = ""
+      this.rwon = null;
+      this.rlost = null;
+      this.teamwon = "";
       this.dialogUpdate = true;
     },
     updateRes() {
@@ -113,12 +144,21 @@ export default {
           this.fixture["lostby"] = this.fixture["team1"];
         }
 
-
+        fb.storage
+          .ref()
+          .child("scorecards/" + this.fixture.mnumber)
+          .put(this.file)
+          .then(r => {
+            r.ref.getDownloadURL().then(link => {
+              fb.fixturesCollection.doc(this.fixture["id"]).update({
+                scURL: link
+              });
+            });
+          });
         fb.fixturesCollection.doc(this.fixture["id"]).update({
           wonby: this.teamwon,
           flag: true
         });
-
 
         fb.teamsCollection
           .where("name", "==", this.fixture["team1"])
@@ -133,7 +173,6 @@ export default {
             });
           });
 
-
         fb.teamsCollection
           .where("name", "==", this.fixture["team2"])
           .get()
@@ -146,7 +185,6 @@ export default {
               });
             });
           });
-
 
         fb.teamsCollection
           .where("name", "==", this.fixture["wonby"])
@@ -181,9 +219,7 @@ export default {
               });
             });
           });
-
       }
-      
     }
   }
 };
